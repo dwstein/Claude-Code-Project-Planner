@@ -24,18 +24,35 @@ ln -s "$(pwd)/Project-Planner/skill" ~/.claude/skills/plan-project
 
 ## Usage
 
-In any Claude Code session:
+Type `/plan-project` in any Claude Code session — it's a global skill, so it works from any directory.
 
 ```
 /plan-project
 ```
 
-Then describe your project. The skill handles 4 phases:
+Then describe your project idea (e.g., "I want to build a CLI tool that tracks expenses"). The skill walks you through 4 phases:
 
-1. **Discovery** — discusses requirements, asks about gaps
-2. **Web Research** (mandatory) — searches for latest versions, best practices, licenses
-3. **Plan Generation** — produces a full plan with 17 required sections
-4. **Scaffold** — creates all files, installs dependencies, git init
+1. **Discovery** — asks follow-up questions to fill gaps (stack, deployment, integrations, auth, etc.)
+2. **Web Research** (mandatory) — searches for latest versions, best practices, and licenses
+3. **Plan Generation** — produces a full plan with 17 required sections and asks for your approval
+4. **Scaffold** — asks where to create the project, then creates the folder, scaffolds all files, installs dependencies, and makes the initial git commit
+
+You don't need to create a project folder first — the skill asks you for a path and creates it for you. Just bring an idea, the skill handles the rest.
+
+### Keeping the skill up to date
+
+The skill is installed at `~/.claude/skills/plan-project/`. If you update the version in this repo, sync it:
+
+```bash
+cp -r skill/ ~/.claude/skills/plan-project/
+```
+
+Or set up a symlink so changes are automatic:
+
+```bash
+rm -rf ~/.claude/skills/plan-project
+ln -s "/path/to/Project-Planner/skill" ~/.claude/skills/plan-project
+```
 
 ## What Gets Generated
 
