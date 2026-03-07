@@ -6,20 +6,11 @@ Give it a project idea, and it will research best practices, generate a comprehe
 
 ## Installation
 
-Copy (or symlink) the skill into your global Claude Code skills directory:
+Clone the repo and copy the skill into your global Claude Code skills directory:
 
 ```bash
-# Clone
 git clone https://github.com/dwstein/Project-Planner.git
-
-# Copy skill to Claude Code
 cp -r Project-Planner/skill ~/.claude/skills/plan-project
-```
-
-Or symlink to keep it synced with the repo:
-
-```bash
-ln -s "$(pwd)/Project-Planner/skill" ~/.claude/skills/plan-project
 ```
 
 ## Usage
@@ -39,20 +30,13 @@ Then describe your project idea (e.g., "I want to build a CLI tool that tracks e
 
 You don't need to create a project folder first — the skill asks you for a path and creates it for you. Just bring an idea, the skill handles the rest.
 
-### Keeping the skill up to date
+### Updating the skill
 
-The skill is installed at `~/.claude/skills/plan-project/`. If you update the version in this repo, sync it:
+To improve the skill over time:
 
-```bash
-cp -r skill/ ~/.claude/skills/plan-project/
-```
-
-Or set up a symlink so changes are automatic:
-
-```bash
-rm -rf ~/.claude/skills/plan-project
-ln -s "/path/to/Project-Planner/skill" ~/.claude/skills/plan-project
-```
+1. Edit `skill/SKILL.md` in this repo
+2. Copy it to the installed location: `cp -r skill/ ~/.claude/skills/plan-project/`
+3. Test by running `/plan-project` in a new Claude Code session
 
 ## What Gets Generated
 
