@@ -570,6 +570,46 @@ Configured in `.claude/settings.json`:
 - **`/gsd`**: Use for structured implementation of the plan. Breaks Steps 6-15 into atomic tasks, runs them in parallel waves with fresh sub-agent contexts.
 - **`/ralph`**: Use for iterative tasks like "fix all failing tests" or "implement all remaining TODOs". Loops autonomously until done.
 
+### Sub-Agent Execution Plan
+
+When running `/gsd`, the implementation steps should be grouped into waves. Independent steps run in parallel; dependent steps run sequentially.
+
+**Wave 1 — Foundation** (sequential, sets up project base)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Git init + commit plan | Step 1 | Creates repo, `.gitignore`, commits `PROJECT_PLAN.md` |
+| CLAUDE.md | Step 2 | Reads plan, generates project intelligence file |
+| Settings + skills | Steps 3-4 | Creates `.claude/settings.json`, all skill files |
+| Auto-memory | Step 5 | Writes project context to Claude Code memory |
+
+**Wave 2 — Scaffold** (sequential, installs dependencies)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Package setup | Step 6 | Creates `package.json`, `.env.example`, `.dockerignore`, runs `npm install` |
+
+**Wave 3 — Core modules** (parallel — no dependencies between these)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Config + logger | Step 7 | Creates `src/config.js` and `src/logger.js` |
+| Notion service | Step 8 | Creates `src/services/notion.js` with rate-limited API wrapper |
+| Schema discovery | Step 9 | Creates `src/services/schema.js` with auto-discovery + prompt builder |
+| Tool definitions | Step 10 | Creates `src/tools/definitions.js` with dynamic tool schemas |
+
+**Wave 4 — Integration layer** (depends on Wave 3)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Claude service | Step 11 | Creates `src/services/claude.js` — tool-use orchestration loop. Depends on Notion service + tool definitions |
+| Slack listeners | Step 12 | Creates `src/listeners/commands.js` and `events.js`. Depends on Claude service |
+| App entry point | Step 13 | Creates `src/app.js` — wires everything together |
+
+**Wave 5 — Deployment + testing** (parallel)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Docker setup | Step 14 | Creates `Dockerfile`, `docker-compose.yml` |
+| Tests | Step 15 | Creates `test/config.test.js`, `test/schema.test.js`, `test/claude-loop.test.js`, runs `npm test` |
+
+Each sub-agent receives: the relevant step description, file paths to create/modify, acceptance criteria, and a reminder to read `CLAUDE.md` for project conventions.
+
 ---
 
 ## Build and Run
