@@ -9,8 +9,8 @@ Give it a project idea, and it will research best practices, generate a comprehe
 Clone the repo and copy the skill into your global Claude Code skills directory:
 
 ```bash
-git clone https://github.com/dwstein/Project-Planner.git
-cp -r Project-Planner/skill ~/.claude/skills/plan-project
+git clone https://github.com/dwstein/Claude-Code-Project-Planner.git
+cp -r Claude-Code-Project-Planner/skill ~/.claude/skills/plan-project
 ```
 
 ## Usage
