@@ -69,6 +69,25 @@ Before generating the plan, you MUST search the web. This is not optional.
 4. `WebSearch` for "[library name] license" for any dependency you're considering
 5. `WebFetch` any particularly relevant GitHub repos or official docs
 
+### Anthropic reference repos (always check the relevant ones):
+
+These official Anthropic repos contain patterns, templates, and best practices. Search or fetch the ones relevant to the chosen stack:
+
+| Repo | When to check |
+|---|---|
+| [anthropics/skills](https://github.com/anthropics/skills) | Always — latest skill templates, SKILL.md format, examples |
+| [anthropics/claude-code](https://github.com/anthropics/claude-code) | Always — CLAUDE.md format, hooks, settings, permissions docs |
+| [anthropics/claude-cookbooks](https://github.com/anthropics/claude-cookbooks) | Projects using Claude API — tool use, streaming, prompt caching patterns |
+| [anthropics/claude-quickstarts](https://github.com/anthropics/claude-quickstarts) | Projects using Claude API — starter templates and deployable examples |
+| [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official) | MCP-based projects — official plugin directory and patterns |
+| [anthropics/anthropic-sdk-python](https://github.com/anthropics/anthropic-sdk-python) | Python projects using Claude API |
+| [anthropics/anthropic-sdk-typescript](https://github.com/anthropics/anthropic-sdk-typescript) | Node/TS projects using Claude API |
+| [anthropics/claude-agent-sdk-python](https://github.com/anthropics/claude-agent-sdk-python) | Python agent projects |
+| [anthropics/claude-agent-sdk-typescript](https://github.com/anthropics/claude-agent-sdk-typescript) | TypeScript agent projects |
+| [anthropics/claude-code-action](https://github.com/anthropics/claude-code-action) | Projects needing CI/CD with Claude |
+
+For each relevant repo, `WebFetch` its README or browse its examples to find patterns that apply to the project being planned.
+
 ### Safety filters during research:
 - Only consider libraries with verified OSS licenses
 - Check GitHub stars, maintenance status, and download counts before recommending
