@@ -442,7 +442,8 @@ Explain to the user what hooks you chose and why.
 Create all source files, config files, and test scaffolding as specified in the plan:
 - Package manager config (`package.json` with `"type": "module"`, `pyproject.toml`, etc.)
 - `.env.example` with all required variables documented
-- `.gitignore` appropriate to the stack
+- `.env` — copy of `.env.example` so the user can fill in real values immediately
+- `.gitignore` appropriate to the stack — **MUST include `.env`** to prevent committing secrets
 - Docker setup if applicable (`Dockerfile`, `docker-compose.yml`, `.dockerignore`)
 - Source files matching the project structure
 - At least one working test
