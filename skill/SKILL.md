@@ -157,7 +157,22 @@ cd <path>
 git init
 ```
 
-Save the plan as `PROJECT_PLAN.md` and make an initial commit.
+Save the plan as `PROJECT_PLAN.md` and create `CHANGELOG.md`:
+
+```markdown
+# Changelog
+
+## [Unreleased]
+
+### Added
+- Initial project scaffold from /plan-project
+- Project plan, CLAUDE.md, settings, skills, hooks
+- Source files and test scaffolding
+```
+
+The changelog is a human-readable summary of major changes. Sub-agents (`/gsd`, `/ralph`) and developers should update it when completing significant work — add a brief entry under the appropriate heading (`Added`, `Changed`, `Fixed`, `Removed`). This avoids digging through git history to understand what happened.
+
+Make an initial commit with both files.
 
 ### 4.2 CLAUDE.md
 
@@ -294,7 +309,8 @@ For each plan:
    - Clear acceptance criteria
 2. The sub-agent implements, tests, and commits
 3. Update `.planning/progress.md` with the result
-4. Move to the next plan
+4. Update `CHANGELOG.md` with a brief entry for what was done
+5. Move to the next plan
 
 ## Progress tracking
 
@@ -351,6 +367,7 @@ You are running the Ralph loop. Your job is to iterate autonomously against a ta
    - Mark the task complete
    - Note what was done
    - Record the commit hash
+7. Update `CHANGELOG.md` with a brief entry for the completed task
 7. Check: are ALL tasks complete? If yes, output "ALL TASKS COMPLETE" and stop
 8. Otherwise, continue to next iteration
 

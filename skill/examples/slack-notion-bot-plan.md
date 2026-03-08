@@ -93,7 +93,7 @@ These steps require human action in web UIs and cannot be automated by Claude Co
 
 ### 4. Populate the .env file
 
-After the project is scaffolded, create a `.env` file from `.env.example` and fill in all values collected above.
+After the project is scaffolded, a `.env` file is created automatically (copy of `.env.example`). Fill in all values collected above.
 
 ---
 
@@ -101,6 +101,7 @@ After the project is scaffolded, create a `.env` file from `.env.example` and fi
 
 ```
 slack-notion-bot/
+├── CHANGELOG.md                     # Human-readable summary of major changes
 ├── CLAUDE.md                         # Project intelligence for Claude Code
 ├── .claude/
 │   ├── settings.json                 # Team-shared project settings (committed)
