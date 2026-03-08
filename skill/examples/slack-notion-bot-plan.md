@@ -115,8 +115,10 @@ slack-notion-bot/
 │       │   └── SKILL.md              # /dev — start local dev server
 │       ├── gsd/
 │       │   └── SKILL.md              # /gsd — spec-driven development workflow
-│       └── ralph/
-│           └── SKILL.md              # /ralph — autonomous agent loop
+│       ├── ralph/
+│       │   └── SKILL.md              # /ralph — autonomous agent loop
+│       └── server/
+│           └── SKILL.md              # /server — remote server operations (deploy, logs, status)
 ├── .planning/                        # GSD progress tracking (created by /gsd)
 │   └── progress.md
 ├── .env.example
@@ -245,7 +247,7 @@ Create `.claude/settings.json` with:
 Update `.gitignore` to include `settings.local.json` and `CLAUDE.local.md`.
 
 ### Step 4: `.claude/skills/` — Custom Commands
-Five skills:
+Six skills:
 
 **`/test`** — Run test suite
 - Runs `npm test` (node:test runner)
@@ -275,6 +277,12 @@ Five skills:
 - Each iteration in a fresh context, memory via git + progress file
 - Configurable max iterations (default 10)
 - `disable-model-invocation: true` — manual only
+
+**`/server`** — Remote server operations
+- Routes all SSH/Docker commands through sub-agents to prevent context rot
+- Hardcoded: server IP, SSH user, app dir, container names from IT Handoff Notes
+- Subcommands: status, logs, deploy, deploy --env-only, run, ssh
+- `disable-model-invocation: true` — manual only (makes remote changes)
 
 ### Step 5: Save to Auto-Memory
 Write project context to Claude Code auto-memory so future sessions can pick up where we left off.
@@ -580,7 +588,7 @@ When running `/gsd`, the implementation steps should be grouped into waves. Inde
 |---|---|---|
 | Git init + commit plan | Step 1 | Creates repo, `.gitignore`, commits `PROJECT_PLAN.md` |
 | CLAUDE.md | Step 2 | Reads plan, generates project intelligence file |
-| Settings + skills | Steps 3-4 | Creates `.claude/settings.json`, all skill files |
+| Settings + skills | Steps 3-4 | Creates `.claude/settings.json`, all skill files (including `/server` for remote deployment) |
 | Auto-memory | Step 5 | Writes project context to Claude Code memory |
 
 **Wave 2 — Scaffold** (sequential, installs dependencies)
@@ -650,6 +658,23 @@ You should see "Slack bot running in Socket Mode" and "Schema discovery complete
 - Logs capped at 10MB x 3 files; output is structured JSON (pino) for log aggregators
 - To update: pull new code, `docker compose build && docker compose up -d`
 - **Do not log tool results verbatim** — they may contain internal Notion content
+
+### Server Operations (`/server` skill)
+
+Pre-configured values for this project:
+
+| Setting | Value |
+|---|---|
+| Server | `10.0.1.50` (internal VPS) |
+| SSH user | `deploy` |
+| App directory | `/opt/slack-notion-bot` |
+| Deploy method | rsync + docker compose |
+| Docker service | `slack-notion-bot` |
+| Container name | `slack-notion-bot-slack-notion-bot-1` |
+| Env file | `/opt/slack-notion-bot/.env` |
+| Cron | None |
+
+Usage: `/server status`, `/server logs`, `/server deploy`, `/server deploy --env-only`, `/server ssh "docker stats"`
 
 ---
 

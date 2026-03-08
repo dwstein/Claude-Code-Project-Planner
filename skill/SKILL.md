@@ -49,6 +49,7 @@ Then, before moving to Phase 2, check this **requirements checklist** and ask ab
 - [ ] Target stack (you suggest based on project type — see Stack Opinions below)
 - [ ] External integrations (APIs, databases, services)
 - [ ] Deployment target (Docker, serverless, local, VPS, etc.)
+- [ ] Server operations (if remote server: SSH user, deploy method, Docker services, cron jobs)
 - [ ] Auth requirements (if any)
 - [ ] Who/what interacts with it (users, bots, cron jobs, other services)
 - [ ] Any existing code or repos to build on
@@ -129,7 +130,7 @@ The plan must include:
 12. **Git Workflow** — branch naming, commit format, when to commit
 13. **Build & Run Instructions** — local dev + production
 14. **Claude Code Infrastructure** — CLAUDE.md, settings, skills (including /gsd and /ralph), hooks with config
-15. **Deployment / Handoff Notes** — ops info for whoever runs it
+15. **Deployment / Handoff Notes** — ops info for whoever runs it. If targeting a remote server, include a **Server Operations** subsection: SSH access, deploy workflow, Docker services/container names, cron schedules. This feeds directly into `/server` skill generation.
 16. **Estimated Costs** (if applicable — API costs, hosting)
 17. **Known Limitations & Future Phases**
 
@@ -385,10 +386,46 @@ Between iterations, state persists via:
 - Always report final status to the user, even if stopped early
 ```
 
+#### /server — Remote server operations (conditional)
+
+Create this skill ONLY when the project deploys to a remote server (VPS, cloud VM, dedicated host). Do NOT create it for serverless, local-only, or managed-platform deployments.
+
+```
+.claude/skills/server/SKILL.md
+```
+
+The /server skill routes ALL remote operations through sub-agents (Agent tool) to keep SSH output, Docker logs, and build noise out of the main conversation context.
+
+When generating this skill, discover and hardcode these project-specific values:
+- Server host/IP and SSH user (from Phase 1 discovery or DEPLOY.md)
+- App directory on the server (e.g., `/opt/myapp`)
+- Deploy method (rsync, git pull, CI/CD)
+- Docker service and container names (from docker-compose.yml)
+- Env file paths, rsync exclude patterns
+- Cron schedules (if any)
+
+Required subcommands:
+
+| Command | Action | Confirm? |
+|---|---|---|
+| `/server status` | Container status, health, uptime, cron schedules | No |
+| `/server logs [service]` | Last 50 lines, casual name mapping (e.g. "api" -> actual container) | No |
+| `/server deploy` | Full deploy: sync code, rebuild, restart containers | Yes |
+| `/server deploy --env-only` | Push env files only, restart | Yes |
+| `/server run <service> [--dry-run]` | Trigger a manual run inside a container | No |
+| `/server ssh <command>` | Pass-through for arbitrary SSH commands | No |
+
+Each subcommand MUST:
+1. Spawn a sub-agent (Agent tool) with the full SSH/bash command
+2. After the sub-agent returns, print a 2-4 line summary
+3. Show errors in full if the command failed
+
+Set `disable-model-invocation: true` — manual only (makes remote changes).
+
 #### Additional project-specific skills
 
 Based on the project type, also create relevant skills such as:
-- `/deploy` — for projects with deployment targets
+- `/deploy` — for projects with deployment targets (use `/server` instead for remote servers)
 - `/check-api` — for projects that integrate with external APIs
 - `/lint` — for projects with linters configured
 - `/db-migrate` — for projects with databases
@@ -492,7 +529,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 Tell the user:
 1. What was created (list key files)
 2. What hooks are active and what they do
-3. What skills are available (`/test`, `/dev`, `/gsd`, `/ralph`, etc.)
+3. What skills are available (`/test`, `/dev`, `/gsd`, `/ralph`, `/server` if applicable, etc.)
 4. Next steps:
    - Fill in `.env` from `.env.example`
    - Complete any prerequisites from the plan
