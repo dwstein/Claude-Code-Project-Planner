@@ -1,42 +1,45 @@
 # /plan-project
 
-A Claude Code skill that plans and scaffolds new projects with full infrastructure for autonomous agent workflows.
+A Claude Code slash command that plans and scaffolds new projects from scratch.
 
-Give it a project idea, and it will research best practices, generate a comprehensive plan, and scaffold everything — source files, tests, Docker, CLAUDE.md, settings, hooks, and agent workflow skills (/gsd + /ralph).
+## Quick Start
+
+1. Open a terminal in any directory
+2. Start Claude Code
+3. Type `/plan-project`
+4. Describe your project idea
+
+That's it. The skill handles everything else — research, planning, scaffolding, git init.
+
+## How It Works
+
+This repo is the **development workspace** for the `/plan-project` skill. The skill itself is installed globally at `~/.claude/skills/plan-project/`, which means you can run `/plan-project` from any Claude Code session, in any folder. You don't even need to create a project folder first — the skill asks where you want it and creates it for you.
+
+When you run it, the skill walks you through 4 phases:
+
+1. **Discovery** — asks follow-up questions to fill gaps (stack, deployment, integrations, auth, etc.)
+2. **Web Research** (mandatory) — searches for latest versions, best practices, and licenses
+3. **Plan Generation** — produces a full plan with 17 required sections and asks for your approval
+4. **Scaffold** — creates the folder, scaffolds all files, installs dependencies, and makes the initial git commit
 
 ## Installation
 
-Clone the repo and copy the skill into your global Claude Code skills directory:
+Clone and copy the skill into your global Claude Code skills directory:
 
 ```bash
 git clone https://github.com/dwstein/Claude-Code-Project-Planner.git
 cp -r Claude-Code-Project-Planner/skill ~/.claude/skills/plan-project
 ```
 
-## Usage
+## Developing the Skill
 
-Type `/plan-project` in any Claude Code session — it's a global skill, so it works from any directory.
-
-```
-/plan-project
-```
-
-Then describe your project idea (e.g., "I want to build a CLI tool that tracks expenses"). The skill walks you through 4 phases:
-
-1. **Discovery** — asks follow-up questions to fill gaps (stack, deployment, integrations, auth, etc.)
-2. **Web Research** (mandatory) — searches for latest versions, best practices, and licenses
-3. **Plan Generation** — produces a full plan with 17 required sections and asks for your approval
-4. **Scaffold** — asks where to create the project, then creates the folder, scaffolds all files, installs dependencies, and makes the initial git commit
-
-You don't need to create a project folder first — the skill asks you for a path and creates it for you. Just bring an idea, the skill handles the rest.
-
-### Updating the skill
-
-To improve the skill over time:
+This repo is where you edit and test changes to the skill:
 
 1. Edit `skill/SKILL.md` in this repo
-2. Copy it to the installed location: `cp -r skill/ ~/.claude/skills/plan-project/`
+2. Copy to the installed location: `cp -r skill/ ~/.claude/skills/plan-project/`
 3. Test by running `/plan-project` in a new Claude Code session
+
+Or symlink so edits are reflected immediately: `ln -s "$(pwd)/skill" ~/.claude/skills/plan-project`
 
 ## What Gets Generated
 
