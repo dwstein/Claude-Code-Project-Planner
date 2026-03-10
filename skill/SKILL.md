@@ -143,6 +143,7 @@ The plan must include:
 15. **Deployment / Handoff Notes** — ops info for whoever runs it. If targeting a remote server, include a **Server Operations** subsection: SSH access, deploy workflow, Docker services/container names, cron schedules. This feeds directly into `/server` skill generation.
 16. **Estimated Costs** (if applicable — API costs, hosting)
 17. **Known Limitations & Future Phases**
+18. **Security Considerations** — Identify the project's attack surface (entry points, trust boundaries, sensitive data). For projects with auth, user input, external APIs, or stored data: list the top risks and their mitigations with specific libraries/patterns. For simple tools with no attack surface, state "No significant attack surface" and move on.
 
 ### Present the plan to the user:
 - Show the plan in full
@@ -224,6 +225,7 @@ Create `CLAUDE.md` at the project root. Keep it under 150 lines. Include:
 - **File Responsibilities** — what each source file does, one line each
 - **Coding Conventions** — import style, logging, testing framework
 - **Gotchas** — rate limits, deadlines, known quirks
+- **Safety Rules** — no modifications outside project dir, no destructive commands without confirmation, no secrets in logs/output, no commits without instruction, prefer small reversible changes, flag risks don't silently fix them
 - **Agent Workflow** — how sub-agents should operate in this project
 
 ### 5.2 .claude/settings.json
@@ -241,7 +243,10 @@ Create `.claude/settings.json` with permissions scoped to the stack:
       "Read", "Grep", "Glob"
     ],
     "deny": [
-      "Bash(rm -rf *)", "Read(.env)"
+      "Bash(rm -rf *)", "Bash(rm -r *)",
+      "Bash(git push *)", "Bash(git commit *)",
+      "Bash(npm publish *)",
+      "Read(.env)"
     ]
   }
 }
@@ -258,7 +263,9 @@ Create `.claude/settings.json` with permissions scoped to the stack:
       "Read", "Grep", "Glob"
     ],
     "deny": [
-      "Bash(rm -rf *)", "Read(.env)"
+      "Bash(rm -rf *)", "Bash(rm -r *)",
+      "Bash(git push *)", "Bash(git commit *)",
+      "Read(.env)"
     ]
   }
 }
@@ -458,6 +465,75 @@ Each subcommand MUST:
 
 Set `disable-model-invocation: true` — manual only (makes remote changes).
 
+#### /security-review — Security analysis (conditional)
+
+Create this skill when the project has any of: user authentication, external API integrations, stored user data, web endpoints, or database access. Do NOT create it for pure CLI tools, local scripts, or projects with no attack surface.
+
+```
+.claude/skills/security-review/SKILL.md
+```
+```yaml
+---
+name: security-review
+description: Run a security analysis of the project. Use before launch, after major architectural changes, or when adding new endpoints/integrations.
+disable-model-invocation: true
+---
+
+# Security Review
+
+Perform a structured security analysis of this project. Read PROJECT_PLAN.md and CLAUDE.md for context.
+
+## Step 1: Attack Surface Inventory
+
+Map every point where data enters or exits the system:
+
+**Inbound:** API endpoints, web forms, file uploads, webhooks, WebSocket connections, CLI inputs, scheduled jobs consuming external data.
+
+**Outbound:** Third-party API calls, database connections, email/SMS services, external auth providers, logging services, payment processors.
+
+**Trust boundaries:** Identify every point where user-controlled or external data crosses into a trusted context (browser→server, server→database, service→service).
+
+**Data flows:** What sensitive data exists (PII, credentials, financial), where it's stored, how it moves, who can access it, how long it's retained.
+
+## Step 2: Threat Assessment
+
+For each entry point and trust boundary, evaluate:
+- **Injection** — SQL/NoSQL, XSS (stored/reflected/DOM), command injection, template injection, path traversal
+- **Auth flaws** — session management, token handling, credential storage, account enumeration, brute force
+- **Authorization** — privilege escalation, IDOR, missing function-level access control
+- **Data exposure** — sensitive data in logs/errors/URLs, over-permissive API responses, client-side storage
+- **Infrastructure** — CORS, CSP, rate limiting, TLS configuration
+- **Business logic** — race conditions, replay attacks, workflow bypass, abuse of intended functionality
+
+## Step 3: Risk Classification
+
+Rate each finding:
+
+| Field | Values |
+|---|---|
+| Severity | Critical / High / Medium / Low |
+| Likelihood | High / Medium / Low |
+| Impact | Data breach / Service disruption / Financial loss / Reputation / Regulatory |
+| Priority | Block (fix before launch) / Post-launch (next cycle) |
+
+## Step 4: Mitigations
+
+For each finding, specify:
+- The specific library, middleware, or pattern to use (tied to this project's stack)
+- Which file/module/route it applies to
+- Effort estimate: trivial (< 1hr) / moderate (hours) / significant (days)
+- How to verify the mitigation works (test case or check)
+
+## Step 5: Output
+
+Save results to `docs/security/`:
+- `attack-surface.md` — inventory from Step 1
+- `findings.md` — threat findings with classifications from Steps 2-3
+- `mitigations.md` — action plan from Step 4
+
+Report a summary to the user with critical/high findings highlighted.
+```
+
 #### Additional project-specific skills
 
 Based on the project type, also create relevant skills such as:
@@ -480,7 +556,7 @@ Choose hooks based on the project type. Add them to `.claude/settings.json`.
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.command' | grep -qE 'rm -rf|DROP TABLE|--force' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command blocked by safety hook\"}}' || true"
+            "command": "jq -r '.tool_input.command' | grep -qE 'rm -rf|rm -r |DROP TABLE|TRUNCATE|--force|--hard' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command blocked by safety hook\"}}' || true"
           }
         ]
       }
