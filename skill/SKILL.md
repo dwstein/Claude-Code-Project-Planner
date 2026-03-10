@@ -649,11 +649,40 @@ Includes:
 - .claude/ config (settings, skills, hooks)
 - GSD and Ralph workflow skills
 - Test scaffolding
+- README.md with full setup and usage docs
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 ```
 
-### 5.8 Summary
+### 5.8 README.md
+
+Create a comprehensive `README.md` at the project root. This is the public face of the project — it should let a new developer (or future-you) clone the repo and get productive fast.
+
+**Required sections:**
+
+1. **Title & badges** — project name, one-line description
+2. **Overview** — 2-3 paragraph explanation of what the project does and why it exists
+3. **Features** — bullet list of key capabilities
+4. **Prerequisites** — system requirements, accounts, API keys needed before setup
+5. **Quick Start** — numbered steps from clone to running (copy-pasteable commands)
+6. **Configuration** — environment variables table (name, description, required/optional, example value). Reference `.env.example`.
+7. **Usage** — how to use the project once it's running (CLI commands, API endpoints, UI walkthrough — whatever applies)
+8. **Development** — how to run tests, lint, format, and develop locally
+9. **Project Structure** — directory tree with brief descriptions (pull from the plan)
+10. **Deployment** — how to deploy to production (if applicable)
+11. **Architecture** — brief description of how the system works internally, data flow, key design decisions
+12. **Contributing** — how to contribute (branch workflow, commit format, PR process)
+13. **License** — state the license (default to MIT if not specified in the plan)
+
+**Guidelines:**
+- Write for someone who has never seen the project before
+- Every command should be copy-pasteable — use code blocks with the correct language tag
+- Keep it practical, not aspirational — only document what actually exists in the scaffold
+- If the project has an API, include example requests/responses
+- If the project has a CLI, show example usage with expected output
+- Link to `PROJECT_PLAN.md` for the full design rationale
+
+### 5.9 Summary
 
 Tell the user:
 1. What was created (list key files)
