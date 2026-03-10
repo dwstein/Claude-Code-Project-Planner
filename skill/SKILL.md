@@ -11,6 +11,16 @@ You are a project planning and scaffolding agent. Your job is to help the user d
 
 Follow these phases in order. Do NOT skip phases. Do NOT scaffold before the user approves the plan.
 
+## Resume detection
+
+Before starting Phase 1, check if `PROJECT_PLAN.md` already exists in the current directory. If it does:
+
+1. Read `PROJECT_PLAN.md`
+2. Tell the user: **"Found an existing project plan. Resuming from Phase 5 (scaffolding)."**
+3. Show a brief summary of the plan (project name, stack, key features)
+4. Ask: **"Ready to scaffold, or do you want to revise the plan first?"**
+5. Skip directly to Phase 5 once confirmed
+
 ---
 
 ## HARD CONSTRAINTS — Apply to ALL phases
@@ -139,43 +149,69 @@ The plan must include:
 - Ask for approval before scaffolding
 - Be prepared to iterate — the user may want changes
 
-Do NOT proceed to Phase 4 until the user explicitly approves.
+Do NOT proceed to Phase 4 until the user explicitly approves the plan.
 
 ---
 
-## Phase 4: Scaffold Everything
+## Phase 4: Save Plan & Initialize Git
 
-Once approved, execute in this order:
+Once the user approves the plan, **immediately** save it to disk and commit. The plan is a deliverable — the user may want to review it later, share it with colleagues, or pick the project back up in a new session. Don't leave it sitting only in the conversation context.
 
-### 4.1 Project Directory & Git
+### 4.1 Create the project directory
 
 Ask the user: "Where should I create this project? Please provide the full path."
 
-Then:
 ```bash
 mkdir -p <path>
 cd <path>
 git init
 ```
 
-Save the plan as `PROJECT_PLAN.md` and create `CHANGELOG.md`:
+### 4.2 Save the plan and commit
 
-```markdown
-# Changelog
+Save the approved plan as `PROJECT_PLAN.md`, then commit it:
 
-## [Unreleased]
-
-### Added
-- Initial project scaffold from /plan-project
-- Project plan, CLAUDE.md, settings, skills, hooks
-- Source files and test scaffolding
+```bash
+git add PROJECT_PLAN.md
+git commit -m "Add project plan from /plan-project"
 ```
 
-The changelog is a human-readable summary of major changes. Sub-agents (`/gsd`, `/ralph`) and developers should update it when completing significant work — add a brief entry under the appropriate heading (`Added`, `Changed`, `Fixed`, `Removed`). This avoids digging through git history to understand what happened.
+This is a checkpoint. The user now has a versioned plan they can revisit, share, or iterate on before scaffolding begins.
 
-Make an initial commit with both files.
+### 4.3 GitHub repo setup
 
-### 4.2 CLAUDE.md
+Prompt the user to create a GitHub repo so the plan is backed up and shareable:
+
+**"Would you like to create a GitHub repo for this project? I can run `gh repo create` for you (public or private)."**
+
+If the user agrees:
+```bash
+gh repo create <project-name> --private --source . --push
+```
+
+If they decline, that's fine — they can do it later.
+
+### 4.4 Clear context for scaffolding
+
+The conversation context is now full of discovery chat, web research, and plan iteration from Phases 1–3. Scaffolding will be more accurate with a fresh context window that only has the plan.
+
+Tell the user:
+
+**"The plan is saved, committed, and pushed. Before we scaffold, I recommend clearing the context window — it's full of research and discussion that will reduce scaffolding accuracy.**
+
+**Start a new Claude Code session in this project directory and run `/plan-project`. It will detect `PROJECT_PLAN.md` and resume from Phase 5 (scaffolding) with a clean context.**
+
+**Or you can continue here if you prefer — your call."**
+
+Do NOT proceed to Phase 5 until the user confirms they want to scaffold (either here or in a fresh session).
+
+---
+
+## Phase 5: Scaffold Everything
+
+Execute in this order:
+
+### 5.1 CLAUDE.md
 
 Create `CLAUDE.md` at the project root. Keep it under 150 lines. Include:
 
@@ -190,7 +226,7 @@ Create `CLAUDE.md` at the project root. Keep it under 150 lines. Include:
 - **Gotchas** — rate limits, deadlines, known quirks
 - **Agent Workflow** — how sub-agents should operate in this project
 
-### 4.3 .claude/settings.json
+### 5.2 .claude/settings.json
 
 Create `.claude/settings.json` with permissions scoped to the stack:
 
@@ -232,7 +268,7 @@ Add hooks based on project type (see Hooks section below).
 
 Also create `.claude/settings.local.json` as an empty JSON object `{}` for personal overrides, and add it to `.gitignore`.
 
-### 4.4 .claude/skills/
+### 5.3 .claude/skills/
 
 Always create these skills:
 
@@ -430,7 +466,7 @@ Based on the project type, also create relevant skills such as:
 - `/lint` — for projects with linters configured
 - `/db-migrate` — for projects with databases
 
-### 4.5 Hooks
+### 5.4 Hooks
 
 Choose hooks based on the project type. Add them to `.claude/settings.json`.
 
@@ -491,7 +527,7 @@ Choose hooks based on the project type. Add them to `.claude/settings.json`.
 
 Explain to the user what hooks you chose and why.
 
-### 4.6 Source Files
+### 5.5 Source Files
 
 Create all source files, config files, and test scaffolding as specified in the plan:
 - Package manager config (`package.json` with `"type": "module"`, `pyproject.toml`, etc.)
@@ -502,13 +538,30 @@ Create all source files, config files, and test scaffolding as specified in the 
 - Source files matching the project structure
 - At least one working test
 
-### 4.7 Install Dependencies
+### 5.6 Install Dependencies
 
 Run the appropriate install command:
 - Node.js: `npm install`
 - Python: `uv sync` or `pip install -e .`
 
-### 4.8 Final Git Commit
+### 5.7 CHANGELOG.md & Final Git Commit
+
+Create `CHANGELOG.md`:
+
+```markdown
+# Changelog
+
+## [Unreleased]
+
+### Added
+- Initial project scaffold from /plan-project
+- Project plan, CLAUDE.md, settings, skills, hooks
+- Source files and test scaffolding
+```
+
+The changelog is a human-readable summary of major changes. Sub-agents (`/gsd`, `/ralph`) and developers should update it when completing significant work — add a brief entry under the appropriate heading (`Added`, `Changed`, `Fixed`, `Removed`). This avoids digging through git history to understand what happened.
+
+Then commit everything:
 
 ```bash
 git add -A
@@ -524,7 +577,7 @@ Includes:
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 ```
 
-### 4.9 Summary
+### 5.8 Summary
 
 Tell the user:
 1. What was created (list key files)
