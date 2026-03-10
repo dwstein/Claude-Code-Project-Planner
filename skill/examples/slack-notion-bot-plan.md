@@ -231,6 +231,7 @@ Create `CLAUDE.md` at project root. Keep concise (<150 lines). Sections:
 - **File Responsibilities** — what each `src/` file does, one line each
 - **Coding Conventions** — ESM imports, pino for logging, node:test for tests
 - **Gotchas** — Slack ack() 3-second deadline, Notion 3 req/sec limit, etc.
+- **Safety Rules** — no modifications outside project dir, no destructive commands without confirmation, no secrets in logs/output, no commits without instruction, prefer small reversible changes
 
 ### Step 3: `.claude/settings.json` (team-shared)
 Create `.claude/settings.json` with:
@@ -240,7 +241,9 @@ Create `.claude/settings.json` with:
   - `Bash(docker compose *)`, `Bash(git status)`, `Bash(git diff)`, `Bash(git log *)`
   - `Read`, `Grep`, `Glob` (unrestricted for code exploration)
 - **Permissions — deny**: dangerous operations
-  - `Bash(rm -rf *)` — prevent accidental deletion
+  - `Bash(rm -rf *)`, `Bash(rm -r *)` — prevent accidental deletion
+  - `Bash(git push *)`, `Bash(git commit *)` — sub-agents must be explicitly authorized
+  - `Bash(npm publish *)` — prevent accidental publishes
   - `Read(.env)` — never read real secrets
 - **Hooks** — see Hooks section below
 
@@ -547,6 +550,34 @@ See Testing Strategy section below.
 
 ---
 
+## Build and Run
+
+### Local development
+
+```bash
+npm install
+cp .env.example .env
+# Fill in .env with real values
+npm run dev
+```
+
+### Docker
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs -f
+```
+
+### Verify
+
+You should see "Slack bot running in Socket Mode" and "Schema discovery complete" with database names. Then:
+- `/ask-notion what tasks are in progress?`
+- `@Notion Bot what projects are active?`
+- DM the bot: "search for meeting notes"
+
+---
+
 ## Claude Code Infrastructure
 
 ### Hooks
@@ -563,7 +594,7 @@ Configured in `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.command' | grep -qE 'rm -rf|DROP TABLE|--force' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command blocked by safety hook\"}}' || true"
+            "command": "jq -r '.tool_input.command' | grep -qE 'rm -rf|rm -r |DROP TABLE|TRUNCATE|--force|--hard' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command blocked by safety hook\"}}' || true"
           }
         ]
       }
@@ -621,34 +652,6 @@ Each sub-agent receives: the relevant step description, file paths to create/mod
 
 ---
 
-## Build and Run
-
-### Local development
-
-```bash
-npm install
-cp .env.example .env
-# Fill in .env with real values
-npm run dev
-```
-
-### Docker
-
-```bash
-docker compose build
-docker compose up -d
-docker compose logs -f
-```
-
-### Verify
-
-You should see "Slack bot running in Socket Mode" and "Schema discovery complete" with database names. Then:
-- `/ask-notion what tasks are in progress?`
-- `@Notion Bot what projects are active?`
-- DM the bot: "search for meeting notes"
-
----
-
 ## IT Handoff Notes
 
 - Container needs outbound HTTPS (443) to: `wss-primary.slack.com`, `wss-backup.slack.com`, `wss-mobile.slack.com`, `api.notion.com`, `api.anthropic.com`
@@ -691,7 +694,9 @@ Prompt caching (`cache_control: { type: 'ephemeral' }`) reduces system prompt co
 
 ---
 
-## Known Limitations (Phase 1)
+## Known Limitations & Future Phases
+
+### Current limitations (Phase 1)
 
 - **Read-only** — no ability to update Notion from Slack
 - **Title search only** — Notion search API matches titles, not page body content
@@ -700,9 +705,7 @@ Prompt caching (`cache_control: { type: 'ephemeral' }`) reduces system prompt co
 - **Rate limits** — 3 req/sec per Notion integration, enforced by p-queue. Concurrent users queue, don't fail
 - **Schema on startup only** — schema changes require bot restart to pick up (Phase 2: periodic refresh)
 
----
-
-## Deferred to Phase 2
+### Deferred to Phase 2
 
 - Conversation memory (per-thread follow-ups)
 - Write operations (create/update Notion pages from Slack)
@@ -710,3 +713,34 @@ Prompt caching (`cache_control: { type: 'ephemeral' }`) reduces system prompt co
 - Schema refresh command or periodic timer
 - Rich Slack Block Kit formatting
 - Prettier/ESLint + auto-format hook
+
+---
+
+## Security Considerations
+
+This bot handles three API keys, proxies internal Notion content through Slack, and runs as a long-lived Docker service. The attack surface is limited but real.
+
+### Attack Surface
+
+| Entry point | Trust boundary | Sensitive data |
+|---|---|---|
+| Slack messages (mentions, DMs, `/ask-notion`) | External user input → Claude prompt → Notion API | User queries may reference confidential content |
+| Notion API responses | External API → bot memory → Slack messages | Internal wiki/database content (potentially confidential) |
+| Environment variables (`.env`) | Host filesystem → container runtime | 3 API keys: Slack, Notion, Anthropic |
+
+### Top Risks & Mitigations
+
+| Risk | Severity | Mitigation |
+|---|---|---|
+| **Prompt injection via Slack message** — user crafts input that manipulates Claude's behavior | Medium | System prompt includes behavioral guardrails ("don't fabricate", "only use provided tools"). Tool-use loop has max iteration guard (default 5). Claude cannot execute arbitrary code — only call defined Notion tools. |
+| **Data leakage — Notion content exposed to unauthorized Slack users** | Medium | Bot only responds in the channel/DM where it was invoked. Notion integration scoping controls which databases are accessible. Slack workspace membership is the access boundary. No cross-workspace data sharing. |
+| **Secret exposure in logs** | High | Pino structured logging — never log raw env vars or API keys. Boundary rule: never log tool results verbatim (may contain internal content). `.env` in `.gitignore` and `Read(.env)` in deny list. |
+| **Stolen API keys** | High | Keys stored in `.env` (not in code or Docker image). Docker image uses `USER node` (non-root). For production: use Docker secrets or a vault. Rotate keys if compromised. |
+| **Notion rate limit abuse** | Low | `p-queue` enforces 3 req/sec. Concurrent queries queue, don't fail. Max tool iterations caps runaway loops. |
+| **Denial of service via expensive queries** | Low | Max iterations guard (default 5) caps Claude API usage per query. Socket Mode has no public URL to attack. Only workspace members can invoke the bot. |
+
+### Not a risk (and why)
+
+- **SQL injection** — no database; Notion SDK handles query construction
+- **XSS** — no web UI; Slack handles message rendering and sanitization
+- **Inbound network attacks** — Socket Mode uses outbound WebSocket only; no ports exposed
