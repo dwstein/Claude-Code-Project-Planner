@@ -128,6 +128,7 @@ Start by letting the user describe their project idea freely. Listen, ask follow
 Then, before moving to Phase 2, check this **requirements checklist** and ask about any gaps:
 
 - [ ] Project name and one-line description
+- [ ] Folder name (default: kebab-case of project name, created as a sibling directory next to this planning tool)
 - [ ] Core functionality / user stories (what does it do?)
 - [ ] Target stack (you suggest based on project type — see Stack Opinions below)
 - [ ] External integrations (APIs, databases, services)
@@ -257,11 +258,19 @@ Once the user approves the plan, **immediately** save it to disk and commit. The
 
 ### 4.1 Create the project directory
 
-Ask the user: "Where should I create this project? Please provide the full path."
+Derive the project directory as a **sibling** of the current working directory using the folder name from Phase 1 discovery:
 
 ```bash
-mkdir -p <path>
-cd <path>
+PROJECT_DIR="../<folder-name>"
+```
+
+Confirm with the user: **"I'll create the project at `../<folder-name>/` (next to this planning tool). Sound good, or do you want a different location?"**
+
+If confirmed:
+
+```bash
+mkdir -p "$PROJECT_DIR"
+cd "$PROJECT_DIR"
 git init
 ```
 
@@ -297,7 +306,7 @@ Tell the user:
 
 **"The plan is saved, committed, and pushed. Before we scaffold, I recommend clearing the context window — it's full of research and discussion that will reduce scaffolding accuracy.**
 
-**Start a new Claude Code session in this project directory and run `/plan-project`. It will detect `PROJECT_PLAN.md` and resume from Phase 5 (scaffolding) with a clean context.**
+**Close this session in the planning tool, then open a new Claude Code session in the new project directory (`../<folder-name>/`) and run `/plan-project`. It will detect `PROJECT_PLAN.md` and resume from Phase 5 (scaffolding) with a clean context.**
 
 **Or you can continue here if you prefer — your call."**
 
