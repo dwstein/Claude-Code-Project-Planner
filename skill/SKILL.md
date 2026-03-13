@@ -89,6 +89,7 @@ Write/update `.claude/plan-state.json` with:
   "stack_output": {},
   "design_output": {},
   "infrastructure_output": {},
+  "dev_workflow_output": {},
   "safety_first_pass": {},
   "plan_draft_path": "PROJECT_PLAN.md"
 }
@@ -107,13 +108,14 @@ Only populate fields as they become available. Earlier phases will have `null` f
 
 ## Sub-Agents
 
-The skill uses 4 specialized sub-agents defined as `.claude/agents/` files. Each agent runs in its own context window, does focused work, and returns structured output to the main agent.
+The skill uses 5 specialized sub-agents defined as `.claude/agents/` files. Each agent runs in its own context window, does focused work, and returns structured output to the main agent.
 
 | Agent | File | When | Purpose |
 |---|---|---|---|
 | `stack-research` | `.claude/agents/stack-research.md` | Phase 2 Step 1 (sequential) | Tech stack, libraries, deployment, architecture |
 | `frontend-design` | `.claude/agents/frontend-design.md` | Phase 2 Step 2 (parallel) | UI/UX, layouts, styling, accessibility |
 | `claude-infrastructure` | `.claude/agents/claude-infrastructure.md` | Phase 2 Step 2 (parallel) | CLAUDE.md, skills, hooks, permissions |
+| `dev-workflow` | `.claude/agents/dev-workflow.md` | Phase 2 Step 2 (parallel) | Local dev, testing, CI/CD, deploy, ops handoff |
 | `safety` | `.claude/agents/safety.md` | Phase 2 Step 2 + Phase 3 (runs twice) | Dependency audit, supply chain, security review |
 
 **All sub-agents inherit the HARD CONSTRAINTS above** (licensing, security, transparency). Include a reminder of these constraints when spawning each agent.
@@ -166,11 +168,13 @@ Using the Stack Research Agent's output, spawn these agents **in parallel** (use
 
 2. **`claude-infrastructure`** agent — always. Pass the stack decisions, project type, deployment target, and whether the project has a remote server, auth, or external APIs.
 
-3. **`safety`** agent (first pass) — always. Include "FIRST PASS" in the prompt. Pass the dependency table from the Stack Research Agent, deployment target, whether any step requires sudo, and the list of external APIs.
+3. **`dev-workflow`** agent — always. Pass the stack decisions, project type, deployment target, whether the project has a remote server, database, external APIs, Docker, and the testing framework from the stack decisions.
+
+4. **`safety`** agent (first pass) — always. Include "FIRST PASS" in the prompt. Pass the dependency table from the Stack Research Agent, deployment target, whether any step requires sudo, and the list of external APIs.
 
 Wait for all parallel agents to return.
 
-**Save plan state:** Update `.claude/plan-state.json` with `phase: "research_complete"` and persist all agent outputs (`design_output`, `infrastructure_output`, `safety_first_pass`).
+**Save plan state:** Update `.claude/plan-state.json` with `phase: "research_complete"` and persist all agent outputs (`design_output`, `infrastructure_output`, `dev_workflow_output`, `safety_first_pass`).
 
 ### Step 3: Review and resolve
 
@@ -178,6 +182,8 @@ Review all agent outputs for conflicts or gaps:
 - If the Safety Agent flagged dependencies as rejected, find alternatives or remove them from the stack
 - If the Frontend Design Agent recommended UI libraries not in the Stack Research output, verify they meet the HARD CONSTRAINTS
 - If the Claude Infrastructure Agent's hook config conflicts with the Safety Agent's findings, adjust
+- If the Dev Workflow Agent's testing strategy conflicts with the Stack Research Agent's testing framework, prefer the Dev Workflow Agent (it runs later with more context)
+- Stack Research Agent decides *what* to deploy to; Dev Workflow Agent decides *how* — reconcile if they conflict
 
 Summarize findings to the user:
 - What the agents researched and recommended
@@ -197,6 +203,7 @@ Synthesize all agent outputs into a comprehensive project plan. Read the example
 - Stack Research Agent output (stack, dependencies, architecture, deployment)
 - Frontend Design Agent output (layouts, components, styling — if applicable)
 - Claude Infrastructure Agent output (CLAUDE.md, skills, hooks, permissions)
+- Dev Workflow Agent output (local dev, testing, CI/CD, deploy, ops handoff)
 - Safety Agent first pass output (dependency audit, privilege concerns)
 
 ### Required sections:
@@ -213,12 +220,12 @@ Synthesize all agent outputs into a comprehensive project plan. Read the example
    - **Never do**: hard stops, security rules
 9. **Code Style Example** — one real code snippet (10-15 lines) showing the canonical pattern for this project. Show don't tell.
 10. **Implementation Steps** — ordered, with code snippets for key files
-11. **Testing Strategy** — how to run tests, what to mock vs. test directly, philosophy
-12. **Error Handling** — startup failures vs. runtime errors vs. rate limits
-13. **Git Workflow** — branch naming, commit format, when to commit
-14. **Build & Run Instructions** — local dev + production
+11. **Testing Strategy** — how to run tests, what to mock vs. test directly, philosophy (from Dev Workflow Agent)
+12. **Error Handling** — startup failures vs. runtime errors vs. rate limits (from Dev Workflow Agent)
+13. **Git Workflow** — branch naming, commit format, when to commit (from Dev Workflow Agent)
+14. **Build, Run & CI/CD Instructions** — local dev, production, CI/CD pipeline (from Dev Workflow Agent)
 15. **Claude Code Infrastructure** — CLAUDE.md, settings, skills (including /gsd and /ralph), hooks with config (from Claude Infrastructure Agent)
-16. **Deployment / Handoff Notes** — ops info for whoever runs it. If targeting a remote server, include a **Server Operations** subsection: SSH access, deploy workflow, Docker services/container names, cron schedules. This feeds directly into `/server` skill generation.
+16. **Deployment / Handoff Notes** — ops info for whoever runs it (from Dev Workflow Agent). If targeting a remote server, include a **Server Operations** subsection: SSH access, deploy workflow, Docker services/container names, cron schedules. This feeds directly into `/server` skill generation.
 17. **Estimated Costs** (if applicable — API costs, hosting)
 18. **Known Limitations & Future Phases**
 19. **Security Considerations** — from Safety Agent first pass. Attack surface, top risks, mitigations.
