@@ -45,13 +45,13 @@ Clone and copy into your global Claude Code skills and agents directories:
 
 ```bash
 git clone https://github.com/dwstein/Claude-Code-Project-Planner.git
-cp -r Claude-Code-Project-Planner/skill ~/.claude/skills/plan-project
+cp -r Claude-Code-Project-Planner/plan-project ~/.claude/skills/plan-project
 cp -r Claude-Code-Project-Planner/.claude/agents/* ~/.claude/agents/
 ```
 
 ## Developing the Skill
 
-1. Edit files in this repo (`skill/SKILL.md`, `.claude/agents/`, etc.)
+1. Edit files in this repo (`plan-project/SKILL.md`, `.claude/agents/`, etc.)
 2. Open a new Claude Code session in this directory and run `/plan-project`
 
 ## What Gets Generated
@@ -123,7 +123,7 @@ Defaults are overridable — web research may surface better options.
 │       ├── claude-infrastructure.md # Claude Code infrastructure sub-agent
 │       ├── dev-workflow.md         # Dev workflow sub-agent
 │       └── safety.md              # Safety audit sub-agent
-├── skill/
+├── plan-project/
 │   ├── SKILL.md           # The /plan-project skill definition
 │   └── examples/
 │       └── slack-notion-bot-plan.md  # Example plan output

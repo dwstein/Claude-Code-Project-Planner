@@ -2,7 +2,6 @@
 name: plan-project
 description: Plan and scaffold a new project with full Claude Code infrastructure. Use when starting a new project, setting up a new codebase, or when the user says they want to build something new.
 disable-model-invocation: true
-allowed-tools: Bash(mkdir *), Bash(git *), Bash(npm *), Bash(python *), Bash(uv *), Bash(node *), Bash(pip *), Bash(open *), Bash(cp *), Bash(ls *), Bash(cat *), Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, Agent, AskUserQuestion
 ---
 
 # /plan-project
