@@ -641,6 +641,37 @@ Based on the project type, also create relevant skills such as:
 - `/lint` — for projects with linters configured
 - `/db-migrate` — for projects with databases
 
+### 5.3.5 .claude/agents/ — Custom Agents
+
+Create project-specific agents based on the Claude Infrastructure Agent's output. These are `.md` files with YAML frontmatter that sub-agents (from `/gsd`, `/ralph`, or manual Agent calls) can use as specialized debugging and operational tools.
+
+Each agent file should follow this format:
+
+```yaml
+---
+name: <agent-name>
+description: <one-line — when to spawn this agent>
+tools: <comma-separated list, scoped to what the agent needs>
+---
+
+<System prompt: what to check, what to report, what NOT to do. Keep under 20 lines.>
+```
+
+**Guidelines:**
+- Scope tools narrowly — a read-only diagnostic agent shouldn't have Write/Edit
+- Focus each agent on ONE failure mode or domain
+- Keep prompts short — the spawner provides runtime context
+- Only create agents that address real, project-specific needs (not generic "code reviewer" agents)
+
+**Common patterns by project type:**
+
+| Project type | Likely agents |
+|---|---|
+| API / Bot | API debugger, event/webhook tracer, auth inspector |
+| Web Frontend | Build debugger, hydration inspector, accessibility auditor |
+| Data Pipeline | Pipeline debugger, data validator, schedule inspector |
+| Full-stack | Combination of the above |
+
 ### 5.4 Hooks
 
 Choose hooks based on the project type. Add them to `.claude/settings.json`.

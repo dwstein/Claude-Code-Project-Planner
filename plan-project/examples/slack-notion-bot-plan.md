@@ -111,6 +111,10 @@ slack-notion-bot/
 ├── .claude/
 │   ├── settings.json                 # Team-shared project settings (committed)
 │   ├── settings.local.json           # Personal machine settings (gitignored)
+│   ├── agents/
+│   │   ├── notion-debugger.md        # Debug Notion API connectivity and schema issues
+│   │   ├── tool-loop-inspector.md    # Diagnose Claude tool-use loop problems
+│   │   └── slack-event-tracer.md     # Debug Slack event delivery and Socket Mode issues
 │   └── skills/
 │       ├── test/
 │       │   └── SKILL.md              # /test — run test suite
@@ -154,7 +158,7 @@ slack-notion-bot/
         └── definitions.js            # Claude tool schemas (built dynamically)
 ```
 
-**Key additions**: `services/schema.js` (auto-discovery), `tools/definitions.js` (dynamic tool schemas), `logger.js` (structured logging), `test/`, `.claude/skills/` (7 skills including GSD, Ralph, server, security-review), `CLAUDE.md`.
+**Key additions**: `services/schema.js` (auto-discovery), `tools/definitions.js` (dynamic tool schemas), `logger.js` (structured logging), `test/`, `.claude/agents/` (3 debugging agents), `.claude/skills/` (7 skills including GSD, Ralph, server, security-review), `CLAUDE.md`.
 
 ---
 
@@ -260,6 +264,25 @@ Create `.claude/settings.json` with:
 - **Hooks** — see Hooks section below
 
 Update `.gitignore` to include `settings.local.json` and `CLAUDE.local.md`.
+
+### Step 3.5: `.claude/agents/` — Custom Agents
+
+Three debugging agents for the main failure modes in this project:
+
+**`notion-debugger.md`** — Notion API troubleshooting
+- Tools: Read, Bash, Grep
+- Checks: API key validity, data source IDs, schema cache freshness, rate limit state (p-queue backlog), HTTP error codes
+- Reports: which specific call failed, why, suggested fix
+
+**`tool-loop-inspector.md`** — Claude tool-use loop diagnostics
+- Tools: Read, Grep
+- Checks: tool definitions match current schema, system prompt includes all databases, tool results aren't truncated too aggressively, iteration count vs. max
+- Reports: where the loop went wrong, which tool call returned unexpected data
+
+**`slack-event-tracer.md`** — Slack event delivery debugging
+- Tools: Read, Bash, Grep
+- Checks: Socket Mode connection status, event subscription config, ack() call timing, bot token scopes
+- Reports: whether events are reaching the app, where they're dropping
 
 ### Step 4: `.claude/skills/` — Custom Commands
 Seven skills:
@@ -631,6 +654,97 @@ Configured in `.claude/settings.json`:
 
 **Note**: No auto-format hook for this project since we have no linter/formatter configured. If Prettier is added later, add a `PostToolUse` hook on `Edit|Write` to auto-format.
 
+### Custom Agents
+
+Project-specific agents in `.claude/agents/` give sub-agents (spawned by `/gsd`, `/ralph`, or manual Agent tool calls) focused expertise without loading the main context with debugging noise.
+
+| Agent | File | When to spawn | Purpose |
+|---|---|---|---|
+| `notion-debugger` | `.claude/agents/notion-debugger.md` | Notion API errors, schema mismatches, rate limit issues | Reads schema cache, tests API connectivity, inspects p-queue state, checks data source IDs |
+| `tool-loop-inspector` | `.claude/agents/tool-loop-inspector.md` | Claude gives wrong/incomplete answers, tool loop hits max iterations | Replays tool call chain from logs, validates tool definitions against current schema, checks prompt construction |
+| `slack-event-tracer` | `.claude/agents/slack-event-tracer.md` | Slash commands or events don't fire, Socket Mode disconnects | Checks Slack app config, verifies event subscriptions, tests ack() timing, reviews Socket Mode connection logs |
+
+**`notion-debugger.md`:**
+```yaml
+---
+name: notion-debugger
+description: Debug Notion API connectivity, schema discovery, and rate limit issues. Spawn when Notion calls fail or return unexpected data.
+tools: Read, Bash, Grep
+---
+
+You are a Notion API debugger for a Slack bot that queries Notion databases via the official SDK.
+
+## What to check
+1. API key validity — try a lightweight API call (e.g., `dataSources.retrieve()`)
+2. Data source IDs — verify each ID in NOTION_DATA_SOURCE_IDS is reachable
+3. Schema cache — read `src/services/schema.js` and check if cached schemas match current Notion state
+4. Rate limits — check p-queue backlog in logs, look for 429 responses
+5. HTTP error codes — match against Notion API error reference
+
+## What to report
+- Which specific call failed and the exact error code/message
+- Whether the issue is auth, schema, rate limit, or network
+- Suggested fix (config change, restart, or code change)
+
+## What NOT to do
+- Do not modify source files — diagnosis only
+- Do not make real Notion API calls unless explicitly asked
+```
+
+**`tool-loop-inspector.md`:**
+```yaml
+---
+name: tool-loop-inspector
+description: Diagnose Claude tool-use loop problems — wrong answers, max iteration hits, or unexpected tool calls. Spawn when the bot gives bad or incomplete responses.
+tools: Read, Grep
+---
+
+You are a tool-use loop diagnostics agent for a Slack bot that uses Claude with Notion tools.
+
+## What to check
+1. Tool definitions — read `src/tools/definitions.js` and verify schemas match current Notion database properties
+2. System prompt — read `src/services/schema.js` buildSystemPrompt output and check for missing databases or stale property names
+3. Tool results — check if results are being truncated too aggressively (8000 char limit in claude.js)
+4. Iteration count — check if queries are hitting MAX_TOOL_ITERATIONS before completing
+5. Message construction — verify tool_result messages are correctly formatted
+
+## What to report
+- Where in the loop the problem occurred (prompt, tool call, tool result, or final response)
+- Which tool call returned unexpected data
+- Whether the issue is schema drift, truncation, or prompt quality
+
+## What NOT to do
+- Do not modify source files — diagnosis only
+- Do not call the Claude API
+```
+
+**`slack-event-tracer.md`:**
+```yaml
+---
+name: slack-event-tracer
+description: Debug Slack event delivery and Socket Mode connectivity. Spawn when slash commands or mentions don't trigger, or Socket Mode disconnects.
+tools: Read, Bash, Grep
+---
+
+You are a Slack event delivery debugger for a bot running in Socket Mode.
+
+## What to check
+1. Socket Mode connection — check logs for WebSocket connect/disconnect events
+2. Event subscriptions — verify app_mention and message.im are registered (compare against Prerequisites section in PROJECT_PLAN.md)
+3. Bot token scopes — confirm required scopes (app_mentions:read, chat:write, commands, im:history, reactions:write)
+4. ack() timing — grep listeners for ack() calls and verify they happen before any async work
+5. Event filtering — check that message handler filters on channel_type === 'im' and ignores bot messages
+
+## What to report
+- Whether events are reaching the app (check logs for incoming event payloads)
+- If ack() is being called within the 3-second deadline
+- Whether the issue is config (Slack app settings), code (handler logic), or network (Socket Mode connection)
+
+## What NOT to do
+- Do not modify source files — diagnosis only
+- Do not send messages to Slack
+```
+
 ### Agent Workflows
 
 - **`/gsd`**: Use for structured implementation of the plan. Breaks Steps 6-15 into atomic tasks, runs them in parallel waves with fresh sub-agent contexts.
@@ -645,7 +759,7 @@ When running `/gsd`, the implementation steps should be grouped into waves. Inde
 |---|---|---|
 | Git init + commit plan | Step 1 | Creates repo, `.gitignore`, commits `PROJECT_PLAN.md` |
 | CLAUDE.md | Step 2 | Reads plan, generates project intelligence file |
-| Settings + skills | Steps 3-4 | Creates `.claude/settings.json`, all skill files (including `/server` for remote deployment) |
+| Settings, skills + agents | Steps 3-4 | Creates `.claude/settings.json`, all skill files (including `/server` for remote deployment), all agent files |
 | Auto-memory | Step 5 | Writes project context to Claude Code memory |
 
 **Wave 2 — Scaffold** (sequential, installs dependencies)
