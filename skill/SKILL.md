@@ -13,13 +13,34 @@ Follow these phases in order. Do NOT skip phases. Do NOT scaffold before the use
 
 ## Resume detection
 
-Before starting Phase 1, check if `PROJECT_PLAN.md` already exists in the current directory. If it does:
+Before starting Phase 1, check for existing state in this order:
+
+### 1. Check `.claude/plan-state.json`
+
+If this file exists, the skill was interrupted mid-planning. Read it and resume from the last completed phase:
+
+| `phase` value | Resume from | What's already done |
+|---|---|---|
+| `discovery_complete` | Phase 2, Step 1 | Discovery answers are saved — skip Phase 1 |
+| `stack_complete` | Phase 2, Step 2 | Stack research done — spawn remaining parallel agents |
+| `research_complete` | Phase 3 | All research done — synthesize the plan |
+| `plan_complete` | Phase 4 | Plan written — save and scaffold |
+| `scaffolded` | Done | Tell the user the project is already scaffolded |
+
+Tell the user: **"Found plan state from a previous session (phase: [phase]). Resuming from [next step]."**
+Show a brief summary of what's been completed, then continue.
+
+### 2. Check `PROJECT_PLAN.md` (no state file)
+
+If `PROJECT_PLAN.md` exists but `.claude/plan-state.json` does not:
 
 1. Read `PROJECT_PLAN.md`
 2. Tell the user: **"Found an existing project plan. Resuming from Phase 5 (scaffolding)."**
 3. Show a brief summary of the plan (project name, stack, key features)
 4. Ask: **"Ready to scaffold, or do you want to revise the plan first?"**
 5. Skip directly to Phase 5 once confirmed
+
+### 3. Neither exists → start fresh from Phase 1
 
 ---
 
@@ -48,6 +69,57 @@ For every dependency chosen, the plan MUST include a dependency table with:
 
 ---
 
+## Plan Persistence
+
+After each major milestone, save state to `.claude/plan-state.json` in the project directory so the plan survives `/clear`, `/compact`, interruptions, and new sessions.
+
+```bash
+mkdir -p .claude
+```
+
+Write/update `.claude/plan-state.json` with:
+
+```json
+{
+  "project_name": "<name>",
+  "created": "<ISO timestamp>",
+  "updated": "<ISO timestamp>",
+  "phase": "<phase value>",
+  "discovery": { "description": "...", "requirements": {}, "checklist_answers": {} },
+  "stack_output": {},
+  "design_output": {},
+  "infrastructure_output": {},
+  "safety_first_pass": {},
+  "plan_draft_path": "PROJECT_PLAN.md"
+}
+```
+
+**Save points:**
+- End of Phase 1 → `phase: "discovery_complete"`, persist `discovery`
+- After Stack Research Agent returns → `phase: "stack_complete"`, persist `stack_output`
+- After all Phase 2 agents return → `phase: "research_complete"`, persist all outputs
+- After plan is written → `phase: "plan_complete"`
+- After scaffold is done → `phase: "scaffolded"`
+
+Only populate fields as they become available. Earlier phases will have `null` for later fields.
+
+---
+
+## Sub-Agents
+
+The skill uses 4 specialized sub-agents defined as `.claude/agents/` files. Each agent runs in its own context window, does focused work, and returns structured output to the main agent.
+
+| Agent | File | When | Purpose |
+|---|---|---|---|
+| `stack-research` | `.claude/agents/stack-research.md` | Phase 2 Step 1 (sequential) | Tech stack, libraries, deployment, architecture |
+| `frontend-design` | `.claude/agents/frontend-design.md` | Phase 2 Step 2 (parallel) | UI/UX, layouts, styling, accessibility |
+| `claude-infrastructure` | `.claude/agents/claude-infrastructure.md` | Phase 2 Step 2 (parallel) | CLAUDE.md, skills, hooks, permissions |
+| `safety` | `.claude/agents/safety.md` | Phase 2 Step 2 + Phase 3 (runs twice) | Dependency audit, supply chain, security review |
+
+**All sub-agents inherit the HARD CONSTRAINTS above** (licensing, security, transparency). Include a reminder of these constraints when spawning each agent.
+
+---
+
 ## Phase 1: Discovery Chat
 
 Start by letting the user describe their project idea freely. Listen, ask follow-up questions, and build understanding.
@@ -67,88 +139,107 @@ Then, before moving to Phase 2, check this **requirements checklist** and ask ab
 
 Do NOT proceed to Phase 2 until you have enough information to make good stack decisions.
 
+**Save plan state:** Write `.claude/plan-state.json` with `phase: "discovery_complete"` and the full discovery data (project name, description, requirements checklist answers, integrations, deployment target, etc.).
+
 ---
 
-## Phase 2: Web Research (MANDATORY)
+## Phase 2: Agent-Driven Research (MANDATORY)
 
-Before generating the plan, you MUST search the web. This is not optional.
+Research is handled by specialized sub-agents. This is not optional — do NOT skip to plan generation.
 
-### Required searches:
-1. `WebSearch` for "[chosen stack] best practices [current year]"
-2. `WebSearch` for "[chosen stack] starter template site:github.com"
-3. `WebSearch` for latest stable versions of chosen frameworks/libraries
-4. `WebSearch` for "[library name] license" for any dependency you're considering
-5. `WebFetch` any particularly relevant GitHub repos or official docs
+### Step 1: Spawn Stack Research Agent (sequential)
 
-### Anthropic reference repos (always check the relevant ones):
+Spawn the `stack-research` agent with:
+- Project description and requirements from Phase 1
+- Focus areas based on project type (e.g., `frontend, backend, infrastructure` for a full-stack web app; `backend, local-service` for a Slack bot)
+- The Stack Opinions table from this skill
 
-These official Anthropic repos contain patterns, templates, and best practices. Search or fetch the ones relevant to the chosen stack:
+Wait for the agent to return its structured report. Review the output for completeness and sanity.
 
-| Repo | When to check |
-|---|---|
-| [anthropics/skills](https://github.com/anthropics/skills) | Always — latest skill templates, SKILL.md format, examples |
-| [anthropics/claude-code](https://github.com/anthropics/claude-code) | Always — CLAUDE.md format, hooks, settings, permissions docs |
-| [anthropics/claude-cookbooks](https://github.com/anthropics/claude-cookbooks) | Projects using Claude API — tool use, streaming, prompt caching patterns |
-| [anthropics/claude-quickstarts](https://github.com/anthropics/claude-quickstarts) | Projects using Claude API — starter templates and deployable examples |
-| [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official) | MCP-based projects — official plugin directory and patterns |
-| [anthropics/anthropic-sdk-python](https://github.com/anthropics/anthropic-sdk-python) | Python projects using Claude API |
-| [anthropics/anthropic-sdk-typescript](https://github.com/anthropics/anthropic-sdk-typescript) | Node/TS projects using Claude API |
-| [anthropics/claude-agent-sdk-python](https://github.com/anthropics/claude-agent-sdk-python) | Python agent projects |
-| [anthropics/claude-agent-sdk-typescript](https://github.com/anthropics/claude-agent-sdk-typescript) | TypeScript agent projects |
-| [anthropics/claude-code-action](https://github.com/anthropics/claude-code-action) | Projects needing CI/CD with Claude |
+**Save plan state:** Update `.claude/plan-state.json` with `phase: "stack_complete"` and persist the `stack_output`.
 
-For each relevant repo, `WebFetch` its README or browse its examples to find patterns that apply to the project being planned.
+### Step 2: Spawn parallel agents
 
-### Safety filters during research:
-- Only consider libraries with verified OSS licenses
-- Check GitHub stars, maintenance status, and download counts before recommending
-- Prefer built-in/standard library solutions over third-party when comparable
-- Cross-check package names against official registries to avoid typosquats
-- Flag any library that has a paid tier, commercial license, or "enterprise" pricing
-- If a library looks promising but you can't verify its license or legitimacy, skip it
+Using the Stack Research Agent's output, spawn these agents **in parallel** (use multiple Agent tool calls in a single message):
 
-### After research:
-Summarize your findings to the user:
-- What you searched for and what you found
+1. **`frontend-design`** agent — only if the project has a user interface (web, CLI, bot, desktop). Pass the stack decisions and interface type.
+
+2. **`claude-infrastructure`** agent — always. Pass the stack decisions, project type, deployment target, and whether the project has a remote server, auth, or external APIs.
+
+3. **`safety`** agent (first pass) — always. Include "FIRST PASS" in the prompt. Pass the dependency table from the Stack Research Agent, deployment target, whether any step requires sudo, and the list of external APIs.
+
+Wait for all parallel agents to return.
+
+**Save plan state:** Update `.claude/plan-state.json` with `phase: "research_complete"` and persist all agent outputs (`design_output`, `infrastructure_output`, `safety_first_pass`).
+
+### Step 3: Review and resolve
+
+Review all agent outputs for conflicts or gaps:
+- If the Safety Agent flagged dependencies as rejected, find alternatives or remove them from the stack
+- If the Frontend Design Agent recommended UI libraries not in the Stack Research output, verify they meet the HARD CONSTRAINTS
+- If the Claude Infrastructure Agent's hook config conflicts with the Safety Agent's findings, adjust
+
+Summarize findings to the user:
+- What the agents researched and recommended
 - Latest versions of key frameworks
-- Any interesting patterns or templates you discovered
-- Any libraries you considered but rejected (and why)
+- Any interesting patterns or templates discovered
+- Any libraries considered but rejected (and why)
+- Any safety concerns flagged
 
 ---
 
 ## Phase 3: Plan Generation
 
-Generate a comprehensive project plan modeled on the example at `${CLAUDE_SKILL_DIR}/examples/slack-notion-bot-plan.md`. Read that file for format reference.
+Synthesize all agent outputs into a comprehensive project plan. Read the example at `${CLAUDE_SKILL_DIR}/examples/slack-notion-bot-plan.md` for format reference.
 
-The plan must include:
+### Inputs available:
+- Phase 1 discovery data
+- Stack Research Agent output (stack, dependencies, architecture, deployment)
+- Frontend Design Agent output (layouts, components, styling — if applicable)
+- Claude Infrastructure Agent output (CLAUDE.md, skills, hooks, permissions)
+- Safety Agent first pass output (dependency audit, privilege concerns)
 
 ### Required sections:
 1. **Overview** — what it does, why, one-paragraph summary
-2. **Stack** — chosen technologies with versions, justified by web research
-3. **Changes from defaults** (if any) — what you changed from the Stack Opinions and why
-4. **Dependencies** — table with: name, version, license, stars/downloads, rationale. Also list what was NOT chosen and why.
+2. **Stack** — chosen technologies with versions, justified by research (from Stack Research Agent)
+3. **Changes from defaults** (if any) — what was changed from the Stack Opinions and why
+4. **Dependencies** — table with: name, version, license, stars/downloads, rationale. Also list what was NOT chosen and why. (from Stack Research Agent + Safety Agent audit)
 5. **Prerequisites** — manual steps the user must do (API keys, accounts, service setup)
 6. **Project Structure** — full directory tree with one-line descriptions per file
-7. **Boundaries** — three-tier system:
+7. **UI/UX Design** (if applicable) — layouts, component hierarchy, styling approach, UX patterns (from Frontend Design Agent)
+8. **Boundaries** — three-tier system (from Claude Infrastructure Agent):
    - **Always do**: safe actions, conventions, required practices
    - **Ask first**: high-impact changes needing review
    - **Never do**: hard stops, security rules
-8. **Code Style Example** — one real code snippet (10-15 lines) showing the canonical pattern for this project. Show don't tell.
-9. **Implementation Steps** — ordered, with code snippets for key files
-10. **Testing Strategy** — how to run tests, what to mock vs. test directly, philosophy
-11. **Error Handling** — startup failures vs. runtime errors vs. rate limits
-12. **Git Workflow** — branch naming, commit format, when to commit
-13. **Build & Run Instructions** — local dev + production
-14. **Claude Code Infrastructure** — CLAUDE.md, settings, skills (including /gsd and /ralph), hooks with config
-15. **Deployment / Handoff Notes** — ops info for whoever runs it. If targeting a remote server, include a **Server Operations** subsection: SSH access, deploy workflow, Docker services/container names, cron schedules. This feeds directly into `/server` skill generation.
-16. **Estimated Costs** (if applicable — API costs, hosting)
-17. **Known Limitations & Future Phases**
-18. **Security Considerations** — Identify the project's attack surface (entry points, trust boundaries, sensitive data). For projects with auth, user input, external APIs, or stored data: list the top risks and their mitigations with specific libraries/patterns. For simple tools with no attack surface, state "No significant attack surface" and move on.
+9. **Code Style Example** — one real code snippet (10-15 lines) showing the canonical pattern for this project. Show don't tell.
+10. **Implementation Steps** — ordered, with code snippets for key files
+11. **Testing Strategy** — how to run tests, what to mock vs. test directly, philosophy
+12. **Error Handling** — startup failures vs. runtime errors vs. rate limits
+13. **Git Workflow** — branch naming, commit format, when to commit
+14. **Build & Run Instructions** — local dev + production
+15. **Claude Code Infrastructure** — CLAUDE.md, settings, skills (including /gsd and /ralph), hooks with config (from Claude Infrastructure Agent)
+16. **Deployment / Handoff Notes** — ops info for whoever runs it. If targeting a remote server, include a **Server Operations** subsection: SSH access, deploy workflow, Docker services/container names, cron schedules. This feeds directly into `/server` skill generation.
+17. **Estimated Costs** (if applicable — API costs, hosting)
+18. **Known Limitations & Future Phases**
+19. **Security Considerations** — from Safety Agent first pass. Attack surface, top risks, mitigations.
+
+### Safety second pass
+
+After writing the plan draft, spawn the **`safety`** agent (second pass) with "SECOND PASS" in the prompt, the complete plan content, and the first pass findings.
+
+If the Safety Agent returns `requires_revision: true`:
+1. Apply the revision instructions
+2. Re-run the Safety Agent second pass on the revised plan
+3. Maximum 2 revision cycles — after that, present the plan with any remaining warnings
+
+Insert the Safety Agent's **Security Considerations** section into the plan.
 
 ### Present the plan to the user:
 - Show the plan in full
 - Ask for approval before scaffolding
 - Be prepared to iterate — the user may want changes
+
+**Save plan state:** Update `.claude/plan-state.json` with `phase: "plan_complete"`.
 
 Do NOT proceed to Phase 4 until the user explicitly approves the plan.
 
@@ -209,6 +300,8 @@ Do NOT proceed to Phase 5 until the user confirms they want to scaffold (either 
 ---
 
 ## Phase 5: Scaffold Everything
+
+**Note:** The Claude Infrastructure Agent's output from Phase 2 provides the CLAUDE.md outline, skills, hooks, permissions, and boundaries. Use that output as the primary source for sections 5.1–5.4 below, supplementing with the plan details as needed.
 
 Execute in this order:
 
@@ -682,7 +775,11 @@ Create a comprehensive `README.md` at the project root. This is the public face 
 - If the project has a CLI, show example usage with expected output
 - Link to `PROJECT_PLAN.md` for the full design rationale
 
-### 5.9 Summary
+### 5.9 Final state save
+
+Update `.claude/plan-state.json` with `phase: "scaffolded"`. This marks the project as fully set up.
+
+### 5.10 Summary
 
 Tell the user:
 1. What was created (list key files)
