@@ -4,8 +4,8 @@ A Claude Code slash command that plans and scaffolds new projects from scratch.
 
 ## Quick Start
 
-1. Open a terminal in any directory
-2. Start Claude Code
+1. Clone this repo
+2. Open Claude Code in the repo directory
 3. Type `/plan-project`
 4. Describe your project idea
 
@@ -13,7 +13,7 @@ That's it. The skill handles everything else — research, planning, scaffolding
 
 ## How It Works
 
-This repo is the **development workspace** for the `/plan-project` skill. The skill itself is installed globally at `~/.claude/skills/plan-project/`, which means you can run `/plan-project` from any Claude Code session, in any folder. You don't even need to create a project folder first — the skill asks where you want it and creates it for you.
+This repo contains the `/plan-project` skill definition at `plan-project/SKILL.md`. The skill is project-local — run Claude Code from this directory and type `/plan-project` to use it.
 
 When you run it, the skill walks you through 5 phases:
 
@@ -39,15 +39,14 @@ The skill uses 5 specialized sub-agents defined in `.claude/agents/`:
 
 The main agent orchestrates sub-agents and synthesizes their outputs into the final `PROJECT_PLAN.md`.
 
-## Installation
-
-Clone and copy into your global Claude Code skills and agents directories:
+## Setup
 
 ```bash
 git clone https://github.com/dwstein/Claude-Code-Project-Planner.git
-cp -r Claude-Code-Project-Planner/plan-project ~/.claude/skills/plan-project
-cp -r Claude-Code-Project-Planner/.claude/agents/* ~/.claude/agents/
+cd Claude-Code-Project-Planner
 ```
+
+Then open Claude Code in this directory and run `/plan-project`.
 
 ## Developing the Skill
 
