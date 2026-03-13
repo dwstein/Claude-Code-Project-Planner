@@ -1,32 +1,37 @@
-# Slack-Notion Bot — Implementation Plan (Revised)
+# Slack-Notion Bot — Implementation Plan
 
-## Overview
+## 1. Overview
 
 Build a Node.js Slack bot that lets users query Notion databases and wiki pages using natural language. The bot uses Claude Haiku 4.5 with tool use to interpret queries and map them to Notion API calls. It runs in a Docker container for deployment on in-house servers.
 
-**Stack**: Node.js 20+ (ESM), Slack Bolt SDK v4.6.x (Socket Mode), Notion SDK v5.11.x (2025-09-03 API), Anthropic SDK v0.78.x, Docker
+## 2. Stack
+
+| Technology | Version | Role |
+|---|---|---|
+| Node.js | 22+ | Runtime (ESM, `"type": "module"`) |
+| Slack Bolt SDK | ^4.6.0 | Slack integration (Socket Mode) |
+| Notion SDK | ^5.11.0 | Notion API client (`retrieveMarkdown`, `dataSources`) |
+| Anthropic SDK | ^0.78.0 | Claude tool-use orchestration |
+| p-queue | ^8.0.0 | Rate limiting (3 req/sec for Notion) |
+| pino | ^9.0.0 | Structured JSON logging |
+| Docker | — | Containerized deployment |
+| node:test | built-in | Test runner (zero dependencies) |
+
+## 3. Changes from Defaults
+
+The Stack Opinions table recommends **Node.js 22+, ESM, pino, node:test** for API/Bot projects. This plan follows those defaults with these additions:
+
+| Area | Default | This project | Why |
+|---|---|---|---|
+| **Slack SDK** | (none — project-specific) | `@slack/bolt` Socket Mode | Official SDK; Socket Mode avoids exposing inbound ports |
+| **Rate limiting** | (none) | `p-queue` ^8.0.0 | Notion API enforces 3 req/sec — need client-side throttling |
+| **Schema discovery** | (none) | Dynamic via `dataSources.retrieve()` | Avoids hardcoding database schemas; picks up Notion changes on restart |
+| **Page content** | (none) | `pages.retrieveMarkdown()` | Single API call replaces manual block-by-block traversal |
+| **Config loading** | `dotenv` | `--env-file` flag (Node built-in) | No extra dependency; Docker uses `env_file` |
 
 ---
 
-## Changes from Original Spec
-
-This plan revises the original spec (committed as the first git commit) with improvements discovered during research.
-
-| Area | Original Spec | Revised |
-|------|--------------|---------|
-| **Module system** | CommonJS (`require`) + p-queue v7 (ESM-only) = broken | ESM throughout (`"type": "module"`) |
-| **Database schemas** | Hardcoded in system prompt | Auto-discovered on startup via `dataSources.retrieve()` |
-| **Page content** | Manual block-by-block traversal (`utils/blocks.js`) | `pages.retrieveMarkdown()` — single API call |
-| **Anthropic SDK** | `^0.39.0` (outdated) | `^0.78.0` (current) |
-| **Notion SDK** | `v5.9.0` | `^5.11.0` (adds `retrieveMarkdown`) |
-| **Logging** | `console.error` only | `pino` structured JSON logging |
-| **Testing** | None | Basic tests using `node:test` (no extra deps) |
-| **Config** | Separate DB IDs per database | Single `NOTION_DATA_SOURCE_IDS` comma-separated list |
-| **Dev tooling** | None | CLAUDE.md, `.claude/settings.json`, custom skills |
-
----
-
-## Dependencies
+## 4. Dependencies
 
 All dependencies are free, open-source, and installed from npm.
 
@@ -39,16 +44,16 @@ All dependencies are free, open-source, and installed from npm.
 | `pino` | ^9.0.0 | MIT | 14k stars, 10M+ weekly downloads | Fastest Node.js JSON logger. Minimal overhead, structured output. |
 
 **Not chosen (and why):**
-- **No `dotenv`** — Node 20+ supports `--env-file` flag natively; Docker uses `env_file`
-- **No `nodemon`** — Node 20+ has built-in `--watch` mode
+- **No `dotenv`** — Node 22+ supports `--env-file` flag natively; Docker uses `env_file`
+- **No `nodemon`** — Node 22+ has built-in `--watch` mode
 - **No `jest` or `vitest`** — `node:test` is built-in, zero dependencies
-- **No `axios`** — Node 18+ has built-in `fetch`
+- **No `axios`** — Node 22+ has stable built-in `fetch`
 - **No `winston`** — pino is faster and produces structured JSON by default
 - **No `devDependencies`** — all dev tools are Node built-ins
 
 ---
 
-## Prerequisites (manual steps before coding)
+## 5. Prerequisites (manual steps before coding)
 
 These steps require human action in web UIs and cannot be automated by Claude Code.
 
@@ -93,14 +98,15 @@ These steps require human action in web UIs and cannot be automated by Claude Co
 
 ### 4. Populate the .env file
 
-After the project is scaffolded, create a `.env` file from `.env.example` and fill in all values collected above.
+After the project is scaffolded, a `.env` file is created automatically (copy of `.env.example`). Fill in all values collected above.
 
 ---
 
-## Project Structure
+## 6. Project Structure
 
 ```
 slack-notion-bot/
+├── CHANGELOG.md                     # Human-readable summary of major changes
 ├── CLAUDE.md                         # Project intelligence for Claude Code
 ├── .claude/
 │   ├── settings.json                 # Team-shared project settings (committed)
@@ -114,8 +120,12 @@ slack-notion-bot/
 │       │   └── SKILL.md              # /dev — start local dev server
 │       ├── gsd/
 │       │   └── SKILL.md              # /gsd — spec-driven development workflow
-│       └── ralph/
-│           └── SKILL.md              # /ralph — autonomous agent loop
+│       ├── ralph/
+│       │   └── SKILL.md              # /ralph — autonomous agent loop
+│       ├── server/
+│       │   └── SKILL.md              # /server — remote server operations (deploy, logs, status)
+│       └── security-review/
+│           └── SKILL.md              # /security-review — security analysis
 ├── .planning/                        # GSD progress tracking (created by /gsd)
 │   └── progress.md
 ├── .env.example
@@ -144,12 +154,17 @@ slack-notion-bot/
         └── definitions.js            # Claude tool schemas (built dynamically)
 ```
 
-**Removed from original spec**: `utils/blocks.js` — replaced by `pages.retrieveMarkdown()`.
-**Added**: `services/schema.js`, `tools/definitions.js`, `logger.js`, `test/`, `.claude/skills/`, `CLAUDE.md`, GSD + Ralph skills.
+**Key additions**: `services/schema.js` (auto-discovery), `tools/definitions.js` (dynamic tool schemas), `logger.js` (structured logging), `test/`, `.claude/skills/` (7 skills including GSD, Ralph, server, security-review), `CLAUDE.md`.
 
 ---
 
-## Boundaries
+## 7. UI/UX Design
+
+Not applicable — this is a Slack bot with no custom UI. User interaction is via slash commands (`/ask-notion`), @mentions, and DMs. All output is plain text in Slack messages.
+
+---
+
+## 8. Boundaries
 
 ### Always do
 - Use ESM imports (`import`/`export`), never CommonJS `require`
@@ -173,7 +188,7 @@ slack-notion-bot/
 
 ---
 
-## Code Style Example
+## 9. Code Style Example
 
 This is the canonical pattern for this project. One real example is worth more than paragraphs of description:
 
@@ -205,7 +220,7 @@ Key patterns shown: ESM import, async/await, pino structured logging with contex
 
 ---
 
-## Implementation Steps
+## 10. Implementation Steps
 
 ### Step 1: Git Init + Commit Original Plan
 - `git init`, create `.gitignore`, commit original plan
@@ -228,6 +243,7 @@ Create `CLAUDE.md` at project root. Keep concise (<150 lines). Sections:
 - **File Responsibilities** — what each `src/` file does, one line each
 - **Coding Conventions** — ESM imports, pino for logging, node:test for tests
 - **Gotchas** — Slack ack() 3-second deadline, Notion 3 req/sec limit, etc.
+- **Safety Rules** — no modifications outside project dir, no destructive commands without confirmation, no secrets in logs/output, no commits without instruction, prefer small reversible changes
 
 ### Step 3: `.claude/settings.json` (team-shared)
 Create `.claude/settings.json` with:
@@ -237,14 +253,16 @@ Create `.claude/settings.json` with:
   - `Bash(docker compose *)`, `Bash(git status)`, `Bash(git diff)`, `Bash(git log *)`
   - `Read`, `Grep`, `Glob` (unrestricted for code exploration)
 - **Permissions — deny**: dangerous operations
-  - `Bash(rm -rf *)` — prevent accidental deletion
+  - `Bash(rm -rf *)`, `Bash(rm -r *)` — prevent accidental deletion
+  - `Bash(git push *)`, `Bash(git commit *)` — sub-agents must be explicitly authorized
+  - `Bash(npm publish *)` — prevent accidental publishes
   - `Read(.env)` — never read real secrets
 - **Hooks** — see Hooks section below
 
 Update `.gitignore` to include `settings.local.json` and `CLAUDE.local.md`.
 
 ### Step 4: `.claude/skills/` — Custom Commands
-Five skills:
+Seven skills:
 
 **`/test`** — Run test suite
 - Runs `npm test` (node:test runner)
@@ -275,6 +293,19 @@ Five skills:
 - Configurable max iterations (default 10)
 - `disable-model-invocation: true` — manual only
 
+**`/server`** — Remote server operations
+- Routes all SSH/Docker commands through sub-agents to prevent context rot
+- Hardcoded: server IP, SSH user, app dir, container names from Deployment / Handoff Notes
+- Subcommands: status, logs, deploy, deploy --env-only, run, ssh
+- `disable-model-invocation: true` — manual only (makes remote changes)
+
+**`/security-review`** — Security analysis
+- Maps attack surface: inbound (Slack messages), outbound (Notion, Claude APIs), trust boundaries
+- Evaluates injection, auth flaws, data exposure, infrastructure risks
+- Classifies findings by severity and priority (block vs. post-launch)
+- Outputs to `docs/security/` (attack-surface.md, findings.md, mitigations.md)
+- `disable-model-invocation: true` — manual only
+
 ### Step 5: Save to Auto-Memory
 Write project context to Claude Code auto-memory so future sessions can pick up where we left off.
 
@@ -290,7 +321,7 @@ Write project context to Claude Code auto-memory so future sessions can pick up 
   "version": "1.0.0",
   "type": "module",
   "description": "Slack bot that queries Notion using natural language via Claude",
-  "engines": { "node": ">=20.0.0" },
+  "engines": { "node": ">=22.0.0" },
   "scripts": {
     "start": "node src/app.js",
     "dev": "node --watch src/app.js",
@@ -455,7 +486,7 @@ registerEvents(app);
 
 **Dockerfile:**
 ```dockerfile
-FROM node:20-slim
+FROM node:22-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
@@ -491,7 +522,7 @@ See Testing Strategy section below.
 
 ---
 
-## Testing Strategy
+## 11. Testing Strategy
 
 **Framework**: `node:test` (built-in, zero dependencies)
 
@@ -516,7 +547,7 @@ See Testing Strategy section below.
 
 ---
 
-## Error Handling Strategy
+## 12. Error Handling
 
 | Failure type | Behavior | Example |
 |---|---|---|
@@ -529,7 +560,7 @@ See Testing Strategy section below.
 
 ---
 
-## Git Workflow
+## 13. Git Workflow
 
 - **Branch naming**: `feature/<description>`, `fix/<description>`, `chore/<description>`
 - **Commit format**: Conventional commits — `feat:`, `fix:`, `chore:`, `test:`, `docs:`
@@ -538,7 +569,42 @@ See Testing Strategy section below.
 
 ---
 
-## Claude Code Infrastructure
+## 14. Build, Run & CI/CD Instructions
+
+### Local development
+
+```bash
+npm install
+cp .env.example .env
+# Fill in .env with real values
+npm run dev
+```
+
+### Docker (production)
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs -f
+```
+
+### Verify
+
+You should see "Slack bot running in Socket Mode" and "Schema discovery complete" with database names. Then:
+- `/ask-notion what tasks are in progress?`
+- `@Notion Bot what projects are active?`
+- DM the bot: "search for meeting notes"
+
+### CI/CD
+
+No CI/CD pipeline for Phase 1 — deploy manually via `/server deploy`. When ready for CI:
+- GitHub Actions workflow: lint, test, build Docker image, push to registry
+- Deploy trigger: push to `main` or manual dispatch
+- Steps: `npm test` → `docker build` → `docker push` → SSH deploy via `/server`
+
+---
+
+## 15. Claude Code Infrastructure
 
 ### Hooks
 
@@ -554,7 +620,7 @@ Configured in `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.tool_input.command' | grep -qE 'rm -rf|DROP TABLE|--force' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command blocked by safety hook\"}}' || true"
+            "command": "jq -r '.tool_input.command' | grep -qE 'rm -rf|rm -r |DROP TABLE|TRUNCATE|--force|--hard' && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Destructive command blocked by safety hook\"}}' || true"
           }
         ]
       }
@@ -570,37 +636,49 @@ Configured in `.claude/settings.json`:
 - **`/gsd`**: Use for structured implementation of the plan. Breaks Steps 6-15 into atomic tasks, runs them in parallel waves with fresh sub-agent contexts.
 - **`/ralph`**: Use for iterative tasks like "fix all failing tests" or "implement all remaining TODOs". Loops autonomously until done.
 
+### Sub-Agent Execution Plan
+
+When running `/gsd`, the implementation steps should be grouped into waves. Independent steps run in parallel; dependent steps run sequentially.
+
+**Wave 1 — Foundation** (sequential, sets up project base)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Git init + commit plan | Step 1 | Creates repo, `.gitignore`, commits `PROJECT_PLAN.md` |
+| CLAUDE.md | Step 2 | Reads plan, generates project intelligence file |
+| Settings + skills | Steps 3-4 | Creates `.claude/settings.json`, all skill files (including `/server` for remote deployment) |
+| Auto-memory | Step 5 | Writes project context to Claude Code memory |
+
+**Wave 2 — Scaffold** (sequential, installs dependencies)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Package setup | Step 6 | Creates `package.json`, `.env.example`, `.dockerignore`, runs `npm install` |
+
+**Wave 3 — Core modules** (parallel — no dependencies between these)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Config + logger | Step 7 | Creates `src/config.js` and `src/logger.js` |
+| Notion service | Step 8 | Creates `src/services/notion.js` with rate-limited API wrapper |
+| Schema discovery | Step 9 | Creates `src/services/schema.js` with auto-discovery + prompt builder |
+| Tool definitions | Step 10 | Creates `src/tools/definitions.js` with dynamic tool schemas |
+
+**Wave 4 — Integration layer** (depends on Wave 3)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Claude service | Step 11 | Creates `src/services/claude.js` — tool-use orchestration loop. Depends on Notion service + tool definitions |
+| Slack listeners | Step 12 | Creates `src/listeners/commands.js` and `events.js`. Depends on Claude service |
+| App entry point | Step 13 | Creates `src/app.js` — wires everything together |
+
+**Wave 5 — Deployment + testing** (parallel)
+| Task | Step | Sub-agent context |
+|---|---|---|
+| Docker setup | Step 14 | Creates `Dockerfile`, `docker-compose.yml` |
+| Tests | Step 15 | Creates `test/config.test.js`, `test/schema.test.js`, `test/claude-loop.test.js`, runs `npm test` |
+
+Each sub-agent receives: the relevant step description, file paths to create/modify, acceptance criteria, and a reminder to read `CLAUDE.md` for project conventions.
+
 ---
 
-## Build and Run
-
-### Local development
-
-```bash
-npm install
-cp .env.example .env
-# Fill in .env with real values
-npm run dev
-```
-
-### Docker
-
-```bash
-docker compose build
-docker compose up -d
-docker compose logs -f
-```
-
-### Verify
-
-You should see "Slack bot running in Socket Mode" and "Schema discovery complete" with database names. Then:
-- `/ask-notion what tasks are in progress?`
-- `@Notion Bot what projects are active?`
-- DM the bot: "search for meeting notes"
-
----
-
-## IT Handoff Notes
+## 16. Deployment / Handoff Notes
 
 - Container needs outbound HTTPS (443) to: `wss-primary.slack.com`, `wss-backup.slack.com`, `wss-mobile.slack.com`, `api.notion.com`, `api.anthropic.com`
 - No inbound ports required
@@ -610,9 +688,26 @@ You should see "Slack bot running in Socket Mode" and "Schema discovery complete
 - To update: pull new code, `docker compose build && docker compose up -d`
 - **Do not log tool results verbatim** — they may contain internal Notion content
 
+### Server Operations (`/server` skill)
+
+Pre-configured values for this project:
+
+| Setting | Value |
+|---|---|
+| Server | `10.0.1.50` (internal VPS) |
+| SSH user | `deploy` |
+| App directory | `/opt/slack-notion-bot` |
+| Deploy method | rsync + docker compose |
+| Docker service | `slack-notion-bot` |
+| Container name | `slack-notion-bot-slack-notion-bot-1` |
+| Env file | `/opt/slack-notion-bot/.env` |
+| Cron | None |
+
+Usage: `/server status`, `/server logs`, `/server deploy`, `/server deploy --env-only`, `/server ssh "docker stats"`
+
 ---
 
-## Estimated Costs
+## 17. Estimated Costs
 
 Using Claude Haiku 4.5:
 - Input: $1 per million tokens
@@ -625,7 +720,9 @@ Prompt caching (`cache_control: { type: 'ephemeral' }`) reduces system prompt co
 
 ---
 
-## Known Limitations (Phase 1)
+## 18. Known Limitations & Future Phases
+
+### Current limitations (Phase 1)
 
 - **Read-only** — no ability to update Notion from Slack
 - **Title search only** — Notion search API matches titles, not page body content
@@ -634,9 +731,7 @@ Prompt caching (`cache_control: { type: 'ephemeral' }`) reduces system prompt co
 - **Rate limits** — 3 req/sec per Notion integration, enforced by p-queue. Concurrent users queue, don't fail
 - **Schema on startup only** — schema changes require bot restart to pick up (Phase 2: periodic refresh)
 
----
-
-## Deferred to Phase 2
+### Deferred to Phase 2
 
 - Conversation memory (per-thread follow-ups)
 - Write operations (create/update Notion pages from Slack)
@@ -644,3 +739,34 @@ Prompt caching (`cache_control: { type: 'ephemeral' }`) reduces system prompt co
 - Schema refresh command or periodic timer
 - Rich Slack Block Kit formatting
 - Prettier/ESLint + auto-format hook
+
+---
+
+## 19. Security Considerations
+
+This bot handles three API keys, proxies internal Notion content through Slack, and runs as a long-lived Docker service. The attack surface is limited but real.
+
+### Attack Surface
+
+| Entry point | Trust boundary | Sensitive data |
+|---|---|---|
+| Slack messages (mentions, DMs, `/ask-notion`) | External user input → Claude prompt → Notion API | User queries may reference confidential content |
+| Notion API responses | External API → bot memory → Slack messages | Internal wiki/database content (potentially confidential) |
+| Environment variables (`.env`) | Host filesystem → container runtime | 3 API keys: Slack, Notion, Anthropic |
+
+### Top Risks & Mitigations
+
+| Risk | Severity | Mitigation |
+|---|---|---|
+| **Prompt injection via Slack message** — user crafts input that manipulates Claude's behavior | Medium | System prompt includes behavioral guardrails ("don't fabricate", "only use provided tools"). Tool-use loop has max iteration guard (default 5). Claude cannot execute arbitrary code — only call defined Notion tools. |
+| **Data leakage — Notion content exposed to unauthorized Slack users** | Medium | Bot only responds in the channel/DM where it was invoked. Notion integration scoping controls which databases are accessible. Slack workspace membership is the access boundary. No cross-workspace data sharing. |
+| **Secret exposure in logs** | High | Pino structured logging — never log raw env vars or API keys. Boundary rule: never log tool results verbatim (may contain internal content). `.env` in `.gitignore` and `Read(.env)` in deny list. |
+| **Stolen API keys** | High | Keys stored in `.env` (not in code or Docker image). Docker image uses `USER node` (non-root). For production: use Docker secrets or a vault. Rotate keys if compromised. |
+| **Notion rate limit abuse** | Low | `p-queue` enforces 3 req/sec. Concurrent queries queue, don't fail. Max tool iterations caps runaway loops. |
+| **Denial of service via expensive queries** | Low | Max iterations guard (default 5) caps Claude API usage per query. Socket Mode has no public URL to attack. Only workspace members can invoke the bot. |
+
+### Not a risk (and why)
+
+- **SQL injection** — no database; Notion SDK handles query construction
+- **XSS** — no web UI; Slack handles message rendering and sanitization
+- **Inbound network attacks** — Socket Mode uses outbound WebSocket only; no ports exposed
